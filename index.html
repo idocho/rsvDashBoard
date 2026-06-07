@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>3박 여행 대시보드 — 2인/4인 이원화</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: 'Malgun Gothic', sans-serif; max-width: 980px; margin: 24px auto; padding: 0 16px; background:#f7f8fa; color:#222; }
+  h1 { font-size: 21px; margin-bottom:4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; border-left: 4px solid #4a6cf7; padding-left: 8px; }
+  .meta { color:#666; font-size:13px; margin-bottom:18px; }
+  .card { background:#fff; border:1px solid #e3e5e8; border-radius:10px; padding:18px; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
+  @media (max-width:700px){ .grid { grid-template-columns:1fr; } }
+  table { border-collapse: collapse; width:100%; font-size:13.5px; }
+  th, td { border:1px solid #e0e0e0; padding:6px 9px; text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  thead th { background:#f0f2f7; }
+  .alert { color:#0a7d32; font-weight:bold; }
+  .down { color:#0a7d32; } .up { color:#c0392b; }
+  details { margin-bottom:8px; }
+  summary { cursor:pointer; font-weight:bold; font-size:14px; padding:4px 0; }
+  ul { margin:6px 0 10px; padding-left:20px; font-size:13.5px; line-height:1.6; }
+  .badge { display:inline-block; background:#eef1fe; color:#4a6cf7; border-radius:12px; padding:2px 10px; font-size:12px; margin-right:6px; }
+  .todo { font-size:13.5px; line-height:1.9; }
+  .todo .pending::before { content:"⬜ "; } .todo .done::before { content:"✅ "; }
+  .notes li { font-size:13px; color:#555; }
+  .tabs { margin-bottom:10px; }
+  .tabs button { border:1px solid #cdd3e0; background:#fff; padding:6px 16px; font-size:13.5px; cursor:pointer; border-radius:6px; margin-right:6px; }
+  .tabs button.on { background:#4a6cf7; color:#fff; border-color:#4a6cf7; }
+  .scA { color:#4a6cf7; } .scB { color:#e67e22; }
+  .st { display:inline-block; border-radius:10px; padding:1px 8px; font-size:11.5px; font-weight:bold; white-space:nowrap; }
+  .st-on { background:#e6f6ec; color:#0a7d32; } .st-watch { background:#fdf3e3; color:#b9770e; } .st-off { background:#f0f0f0; color:#999; }
+  #deals td { text-align:left; vertical-align:top; }
+</style>
+</head>
+<body>
+<h1>✈️ 3박 여행 대시보드 — 시나리오 이원화</h1>
+<div class="meta">
+  <span class="badge scA">A안: 성인 남성 2인</span>
+  <span class="badge scB">B안: 성인 남2·여1 + 여중생1 (4인)</span>
+  <span class="badge">인천 출발</span><span class="badge">시기 미정</span><span class="badge">해외 4개 노선 (제주 제외)</span><span class="badge">일본·타이베이 3박4일 / 다낭 3박5일 권장</span>
+  최종 업데이트: <b id="updated"></b>
+</div>
+
+<div class="card">
+<h2>가격 추이 (항공+숙소 합계)</h2>
+<div class="tabs">
+  <button id="btnA" class="on" onclick="setScenario('A')">A안 · 2인</button>
+  <button id="btnB" onclick="setScenario('B')">B안 · 4인</button>
+</div>
+<canvas id="trend"></canvas>
+</div>
+
+<div class="card">
+<h2>최신 시세 — 전일 대비</h2>
+<table id="latest"><thead><tr>
+<th rowspan="2">노선</th><th colspan="3" class="scA">A안 (2인, 원)</th><th colspan="3" class="scB">B안 (4인, 원)</th>
+</tr><tr>
+<th>항공</th><th>숙소(3박)</th><th>합계·변동</th><th>항공</th><th>숙소(3박)</th><th>합계·변동</th>
+</tr></thead><tbody></tbody></table>
+<p style="font-size:12.5px;color:#777">알림 기준: A안 합계 <b>80만원 이하</b>, B안 합계 <b>160만원 이하</b>(✅) 또는 항공권 <b>15% 이상 하락</b>. B안 항공은 중학생도 성인 운임(만 12세 이상). B안 숙소는 패밀리룸 또는 트윈 2실 중 저렴한 쪽. 가격은 추정 시세.</p>
+</div>
+
+<div class="card">
+<h2>🔥 특가 리포트</h2>
+<p style="font-size:12.5px;color:#777;margin-top:-4px">3박4일 외 일정(3박5일 등) 특가 포함. 마감 임박 순. <b id="dealctx" style="color:#555"></b></p>
+<table id="deals"><thead><tr><th>상태</th><th>특가</th><th>내용</th><th>관련 노선</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="grid">
+<div class="card">
+<h2>후보지 정보</h2>
+<table><thead><tr><th>후보지</th><th>비행</th><th>비고</th></tr></thead><tbody id="routeinfo"></tbody></table>
+</div>
+<div class="card">
+<h2>결정 사항</h2>
+<div class="todo" id="decisions"></div>
+<h2 style="margin-top:16px">예약 타이밍 가이드</h2>
+<ul>
+<li>타이베이: 출발 약 76일 전이 최적</li>
+<li>일본 노선: 4~6주 전이 통상 최적</li>
+<li>저녁 출발편이 오후 대비 최대 43% 저렴한 경향</li>
+<li>B안(4인)은 좌석 묶음 확보를 위해 더 일찍 예약 권장</li>
+</ul>
+</div>
+</div>
+
+<div class="card">
+<h2>여정 컨셉 & 동선 기반 식사 계획</h2>
+<p style="font-size:12.5px;color:#777;margin-top:-6px">각 행선지를 펼치면 여정 컨셉과 식사 동선이 보입니다. B안(여중생 포함) 시 야시장·시장 코스는 동일하게 무난, 술집형 가게(야타이·호루몬)는 식사 위주 가게로 선택.</p>
+<div id="meals"></div>
+</div>
+
+<div class="card">
+<h2>모니터링 메모</h2>
+<ul class="notes" id="notes"></ul>
+</div>
+
+<script>
+// ============ DATA SECTION (스케쥴 작업이 매일 갱신) ============
+// PRICE_DATA: 누적 기록. 매일 4개 노선 행 추가. 기존 행 수정·삭제 금지.
+// A=성인2인 / B=성인3+중학생1(4인, 항공은 전원 성인 운임)
+// 기준 일정: 오사카·후쿠오카·타이베이=3박4일, 다낭=3박5일(아침출발·심야귀국) — 숙소는 전 노선 3박 동일
+// 형식: {date, route, flightA, hotelA, flightB, hotelB}
+const PRICE_DATA = [
+  {date:"2026-06-07", route:"오사카",   flightA:208000, hotelA:300000, flightB:416000,  hotelB:510000},
+  {date:"2026-06-07", route:"후쿠오카", flightA:180000, hotelA:270000, flightB:360000,  hotelB:460000},
+  {date:"2026-06-07", route:"타이베이", flightA:224000, hotelA:240000, flightB:448000,  hotelB:410000},
+  {date:"2026-06-07", route:"다낭",     flightA:500000, hotelA:200000, flightB:1000000, hotelB:340000},
+];
+
+// ROUTE_INFO: 후보지 기본 정보 (필요시 갱신)
+const ROUTE_INFO = [
+  {route:"오사카",   flightTime:"~1.5h", note:"8월이 항공 평균 최저. 7~8월 축제 시즌(텐진마쓰리 등) 숙소 급등 주의"},
+  {route:"후쿠오카", flightTime:"~1.2h", note:"LCC 다수, 최단 거리 해외. 6~7월 항공 저렴, 출발 40일 전 예약 최적"},
+  {route:"타이베이", flightTime:"~2.5h", note:"숙소 가성비 우수, 패밀리룸 흔함. 새벽 귀국(02시대) 3박5일 패턴 존재 — 마지막 날 풀 활용 가능하나 새벽 비행 피로 감안(B안 여중생 비추천)"},
+  {route:"다낭",     flightTime:"~4.5h", note:"휴양형, 숙소 저렴. 비엣젯 특가 시 항공 급락, 10월이 연중 최저. 4인 풀빌라 대안. ★3박5일 권장: VJ879 인천 07:00발 / 다낭 23:40 심야귀국 — 같은 3박 숙박으로 체류 4일 확보, 특가 상품도 3박5일이 주류"},
+];
+
+// CONCEPTS: 행선지별 여정 컨셉 (코스 추천 시 기대 포인트)
+const CONCEPTS = {
+  "오사카 (난바 거점)": "🍜 '먹다가 하루가 끝나는 도시' — 식도락 집중형. 화려한 도톤보리의 밤, 시장·백화점 지하 식품관 탐방까지 도보+지하철로 끝나는 콤팩트 동선. 쇼핑과 미식을 한 번에.",
+  "후쿠오카 (하카타 거점)": "🏮 '가장 가까운 일본의 일상' — 비행 1시간대의 가벼움. 규모는 작지만 라멘·모츠나베·야타이로 이어지는 밤 문화가 진하고, 다자이후 반나절 소풍으로 여유까지. 첫 해외나 짧은 일정에 최적.",
+  "타이베이 (시먼딩/중산 거점)": "🏮 '야시장과 찻집 사이' — 가성비 미식 + 레트로 감성. 매일 밤 다른 야시장을 도장깨기하고, 지우펀에서 홍등 야경과 차 한 잔. 물가가 낮아 같은 예산으로 두 배 즐기는 여행.",
+  "다낭 (미케비치 거점·3박5일)": "🏖️ '아무것도 안 하는 사치' — 휴양 올인형. 오전엔 해변과 수영장, 오후엔 마사지, 저녁엔 호이안 올드타운의 등불 야경. 이동을 최소화한 느긋한 일정으로 4인 가족(B안)에도 가장 무난. 3박5일(아침 출발·심야 귀국)로 같은 숙박비에 하루를 더 번다."
+};
+
+// MEALS: 동선 기반 식사 계획 (시즌 정보·맛집 갱신 대상)
+const MEALS = {
+  "오사카 (난바 거점)": [
+    "D1 저녁: 도톤보리 — 다코야키·구시카츠 거리 식사",
+    "D2: 구로몬 시장 아침 → 우메다 한큐 지하 식품관 점심 → 신세카이 쿠시카츠 저녁",
+    "D3: 츠루하시 야키니쿠 점심 → 난바 라멘(이치란/킨류) 저녁",
+    "D4: 린쿠타운 아울렛 푸드코트 (공항 동선)"
+  ],
+  "후쿠오카 (하카타 거점)": [
+    "D1 저녁: 나카스 야타이 거리 (B안: 식사 위주 야타이 선택)",
+    "D2: 야나기바시 시장 아침 → 캐널시티 라멘스타디움 점심 → 모츠나베 저녁",
+    "D3: 다자이후 우메가에모치 간식 → 하카타역 텐진 호루몬 저녁 (B안: 야키니쿠 대체 가능)",
+    "D4: 하카타역 에키벤 또는 다이묘 우동"
+  ],
+  "타이베이 (시먼딩/중산 거점)": [
+    "D1 저녁: 닝샤 야시장",
+    "D2: 융캉제 딘타이펑 본점 점심, 망고빙수 → 스린 야시장 저녁",
+    "D3: 지우펀 — 아메이 찻집, 땅콩 아이스크림롤 → 라오허제 야시장 저녁",
+    "D4: 린동팡 우육면 점심 (공항 동선)"
+  ],
+  "다낭 (미케비치 거점·3박5일)": [
+    "D1 (07:00발, 10:05 도착): 한시장 반미·쌀국수 점심 → 미케비치 해산물 거리 저녁",
+    "D2: 리조트 조식·수영 → 마사지 → 강변 디너 크루즈 또는 로컬 BBQ",
+    "D3: 호이안 — 카오러우, 화이트로즈 → 올드타운 야시장 저녁",
+    "D4 (23:40 심야 귀국): 바나힐 또는 해변 풀데이 → 콩카페 코코넛커피 → 저녁 식사 후 공항 (D5 새벽 인천 도착)"
+  ]
+};
+
+// DECISIONS: 상태 done/pending
+const DECISIONS = [
+  {label:"시나리오 확정 (A안 2인 / B안 4인)", status:"pending"},
+  {label:"일정 패턴 — 일본·타이베이 3박4일 / 다낭 3박5일 (심야귀국)", status:"done"},
+  {label:"행선지 확정", status:"pending"},
+  {label:"날짜 확정", status:"pending"},
+  {label:"항공권 예약", status:"pending"},
+  {label:"숙소 예약", status:"pending"}
+];
+
+// DEALS: 특가 리포트 (정기 조사 시 갱신 — 종료된 건 status:"off"로 변경, 7일 지나면 삭제)
+// status: on=진행중 / watch=모니터링·상시 / off=종료
+const DEAL_CONTEXT = "배경: 이란 전쟁 여파로 유류할증료 급등(후쿠오카 왕복 약 15.7만원)했으나, LCC들이 운임을 낮춰 총액은 작년보다 오히려 저렴. 6월이 후쿠오카·대만행 연중 최저가 달.";
+const DEALS = [
+  {status:"on", title:"티웨이 6월 국제선 프로모션 (~6/13 판매)", routes:"오사카·후쿠오카·타이베이·다낭 전 후보",
+   detail:"국제선 54개 노선 최대 27% 할인 + 결제금액별 최대 1만원 쿠폰. 할인코드 JUN26(전체)/JUN26TP(멤버십). 탑승 8/31까지 → 여름 출발이면 지금이 기회."},
+  {status:"on", title:"이스타 깜짝 할인 운임 (6월 주말)", routes:"후쿠오카·오사카",
+   detail:"6월 주말 왕복 총액(유류할증료 포함) 인천~후쿠오카 24만7300원, 인천~오사카 27만6800원/인. 작년 동기 대비 약 2~8만원 저렴."},
+  {status:"on", title:"비엣젯 다낭 3박5일 특가 (기간 확장형)", routes:"다낭",
+   detail:"항공권만 1인 35만원대~, 에어텔(항공+호텔) 1인 63만원~. 다낭은 3박4일보다 3박5일(심야 귀국) 상품이 좌석·가격 모두 유리 — 일정 하루 연장 검토 가치."},
+  {status:"watch", title:"비엣젯 주간 반짝특가 (수시)", routes:"다낭",
+   detail:"코드 입력 시 에코 운임 최대 100% 할인(유류할증료·세금 별도)을 수시 진행. 뜨면 다낭 항공이 급락하므로 주간 단위 확인."},
+  {status:"watch", title:"진에어 '유류비 방어' 프로모션 / 진마켓", routes:"오사카·후쿠오카·타이베이·다낭",
+   detail:"현재 위탁수하물 5kg 추가 등 부가혜택 중심. 반기 최대 특가 '진마켓'(최대 96% 할인, 일본 편도 5만원대)은 1월 회차 종료 — 통상 7~8월 하반기 회차 재개, 오픈 당일 매진 주의."},
+  {status:"off", title:"파라타항공 데일리 1000석 (5/20 종료)", routes:"오사카·다낭",
+   detail:"인천~오사카 왕복 약 18만원, 인천~다낭 왕복 약 36만원. 재개 시 다낭 최저가 기회 — 재공지 모니터링."}
+];
+
+// NOTES: 매일 한 줄 메모 추가 (최신이 위, 30개 초과 시 오래된 것 삭제)
+const NOTES = [
+  "2026-06-07(3박5일 반영): 다낭은 3박5일 확정 권장 — VJ879(07:00발)/심야귀국(23:40) 패턴, 같은 3박 숙박으로 체류 4일·특가 상품도 3박5일 주류. 타이베이는 새벽 귀국 3박5일 가능하나 B안(여중생) 피로 고려해 3박4일 유지. 일본 2개 노선은 3박4일 표준. 다낭 가격 추적은 3박5일 기준으로 전환.",
+  "2026-06-07(특가 리포트 신설): 기간 한정 특가 추적 시작. 핵심 — 티웨이 6월 프로모션(~6/13, 전 후보 노선 최대 27%)이 최우선, 이스타 6월 주말 일본 노선 깜짝 운임, 다낭은 3박5일 상품이 유리. 정기 조사 시 DEALS 갱신 필수.",
+  "2026-06-07(정기작업 재확인): 동일 날짜 행이 이미 있어 중복 행 추가 생략. 재조사 결과 A안 — 오사카·후쿠오카·타이베이 기존 기록과 일치, 다낭 왕복 31만원대 관측(기록 25만 대비 상승 조짐, 내일 행부터 반영). B안 — 전 노선 160만 이하 ✅ 유지, A안 전 노선 80만 이하 ✅ 유지. 최저: A안 후쿠오카 45만 / B안 후쿠오카 82만.",
+  "2026-06-07(행선지 조정): 제주 배제 — 해외 4개 노선(오사카·후쿠오카·타이베이·다낭)만 추적.",
+  "2026-06-07(이원화): A/B 시나리오 분리 시작. B안 항공은 A안×2(전원 성인 운임), 숙소는 4인 기준 추정 — 다음 조사부터 실측. A안 최저: 후쿠오카·제주. B안 최저: 제주(79만 ✅)·후쿠오카(82만).",
+  "2026-06-07(2차 갱신): 5개 노선 전부 2인 합계 80만원 이하 ✅. 다낭 항공 62.4만→50만(-19.9%, 비엣젯 최저가 기준 적용). 후쿠오카 6월이 연중 최저가 달.",
+  "2026-06-07: 최초 기록. 후쿠오카·제주(44만)·타이베이(46만)가 2인 합계 최저권."
+];
+// ================================================================
+
+const THRESHOLD = { A: 800000, B: 1600000 };
+const routes = [...new Set(PRICE_DATA.map(d=>d.route))];
+const dates = [...new Set(PRICE_DATA.map(d=>d.date))].sort();
+const colors = {"오사카":"#e74c3c","후쿠오카":"#3498db","타이베이":"#9b59b6","다낭":"#f39c12"};
+const latestDate = dates[dates.length-1];
+const prevDate = dates.length>1 ? dates[dates.length-2] : null;
+document.getElementById('updated').textContent = latestDate;
+
+let chart, scenario = 'A';
+function totalOf(d, sc) { return sc==='A' ? d.flightA + d.hotelA : d.flightB + d.hotelB; }
+
+function buildChart() {
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('trend'), {
+    type: 'line',
+    data: { labels: dates, datasets: routes.map(r => ({
+      label: r,
+      data: dates.map(dt => { const m = PRICE_DATA.find(d=>d.date===dt && d.route===r); return m ? totalOf(m, scenario) : null; }),
+      borderColor: colors[r], backgroundColor: colors[r], tension: 0.2, spanGaps: true
+    })) },
+    options: {
+      plugins: { title: { display:true, text: scenario==='A' ? 'A안 · 성인 2인 합계 (원)' : 'B안 · 4인 합계 (원)' } },
+      scales: { y: { ticks: { callback: v => (v/10000)+'만' } } }
+    }
+  });
+}
+function setScenario(sc) {
+  scenario = sc;
+  document.getElementById('btnA').classList.toggle('on', sc==='A');
+  document.getElementById('btnB').classList.toggle('on', sc==='B');
+  buildChart();
+}
+buildChart();
+
+function cellPair(cur, prev, sc) {
+  const total = totalOf(cur, sc);
+  let chg = '';
+  if (prev) {
+    const pt = totalOf(prev, sc);
+    const pct = ((total - pt) / pt * 100).toFixed(1);
+    chg = total===pt ? '' : ` <span class="${total<pt?'down':'up'}">${total<pt?'▼':'▲'}${Math.abs(pct)}%</span>`;
+  }
+  const f = sc==='A'?cur.flightA:cur.flightB, h = sc==='A'?cur.hotelA:cur.hotelB;
+  const ok = total <= THRESHOLD[sc];
+  return `<td>${f.toLocaleString()}</td><td>${h.toLocaleString()}</td><td class="${ok?'alert':''}">${total.toLocaleString()}${ok?' ✅':''}${chg}</td>`;
+}
+const tbody = document.querySelector('#latest tbody');
+routes.forEach(r => {
+  const cur = PRICE_DATA.find(d=>d.date===latestDate && d.route===r);
+  if (!cur) return;
+  const prev = prevDate ? PRICE_DATA.find(d=>d.date===prevDate && d.route===r) : null;
+  tbody.insertAdjacentHTML('beforeend', `<tr><td>${r}</td>${cellPair(cur,prev,'A')}${cellPair(cur,prev,'B')}</tr>`);
+});
+
+document.getElementById('routeinfo').innerHTML = ROUTE_INFO.map(r =>
+  `<tr><td>${r.route}</td><td>${r.flightTime}</td><td style="text-align:left">${r.note}</td></tr>`).join('');
+document.getElementById('decisions').innerHTML = DECISIONS.map(d =>
+  `<div class="${d.status}">${d.label}</div>`).join('');
+document.getElementById('meals').innerHTML = Object.entries(MEALS).map(([k,v]) =>
+  `<details><summary>${k}</summary>
+   ${CONCEPTS[k] ? `<p style="font-size:13px;color:#444;background:#f4f6fb;border-radius:6px;padding:8px 12px;margin:6px 0">${CONCEPTS[k]}</p>` : ''}
+   <ul>${v.map(i=>`<li>${i}</li>`).join('')}</ul></details>`).join('');
+document.getElementById('notes').innerHTML = NOTES.map(n=>`<li>${n}</li>`).join('');
+
+const STLABEL = {on:["st-on","진행중"], watch:["st-watch","모니터링"], off:["st-off","종료"]};
+document.getElementById('dealctx').textContent = DEAL_CONTEXT;
+document.querySelector('#deals tbody').innerHTML = DEALS.map(d => {
+  const [cls, txt] = STLABEL[d.status];
+  return `<tr${d.status==='off'?' style="color:#999"':''}><td><span class="st ${cls}">${txt}</span></td><td style="font-weight:bold;min-width:130px">${d.title}</td><td>${d.detail}</td><td style="min-width:90px">${d.routes}</td></tr>`;
+}).join('');
+</script>
+</body>
+</html>
